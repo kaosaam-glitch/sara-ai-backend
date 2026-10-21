@@ -2,6 +2,7 @@ from flask import Flask, render_template_string, jsonify, request
 import requests
 from bs4 import BeautifulSoup
 import paho.mqtt.client as mqtt
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -49,6 +50,19 @@ def scrape_dsd():
 
     return jsonify({"status": "ok", "news_context": NEWS_CACHE})
 
+# ฟังก์ชันแปลงวันที่ ค.ศ. เป็น พ.ศ. แบบอัตโนมัติ
+def get_thai_current_date():
+    now = datetime.now()
+    days = ["วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์", "วันอาทิตย์"]
+    months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
+    
+    day_name = days[now.weekday()]
+    day_num = now.day
+    month_name = months[now.month - 1]
+    thai_year = now.year + 543
+    
+    return f"{day_name}ที่ {day_num} {month_name} พ.ศ. {thai_year}"
+
 # ฟังก์ชันประมวลผลคำถามผ่าน OpenRouter AI (Gemini 2.5 Flash)
 @app.route('/api/ask-ai', methods=['POST'])
 def ask_ai():
@@ -57,6 +71,8 @@ def ask_ai():
     
     # ส่งสถานะ THINKING ไปยังบอร์ด ESP32-S3
     send_mqtt_command("THINKING")
+
+    current_date_str = get_thai_current_date()
 
     headers = {
         "Content-Type": "application/json",
@@ -68,7 +84,7 @@ def ask_ai():
         "messages": [
             {
                 "role": "system",
-                "content": f"คุณคือ 'น้องพัฒนาสาระคาม' ผู้ช่วยอัจฉริยะหญิงประจำ 'สำนักงานพัฒนาฝีมือแรงงานมหาสารคาม' (สนพ.มค.) ปีปัจจุบันคือ พ.ศ. 2569 ข้อมูลข่าวสารล่าสุด: [{NEWS_CACHE}] จงตอบคำถามด้วยน้ำเสียงสุภาพ เป็นกันเอง"
+                "content": f"คุณคือ 'น้องพัฒนา' ผู้ช่วยอัจฉริยะหญิงประจำ 'สำนักงานพัฒนาฝีมือแรงงานมหาสารคาม' (สนพ.มค.) วันนี้คือ '{current_date_str}' (ให้ยึดถือนี่เป็นวันเวลาปัจจุบันเสมอ) ข้อมูลข่าวสารล่าสุด: [{NEWS_CACHE}] จงตอบคำถามด้วยน้ำเสียงสุภาพ เป็นกันเอง"
             },
             {
                 "role": "user",
@@ -117,7 +133,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>🤖 น้องพัฒนาสาระคาม AI</h1>
+        <h1>🤖 น้องพัฒนาสารคาม AI</h1>
         <p>ระบบควบคุมอัจฉริยะและ AI Assistant ประจำสำนักงาน</p>
         
         <div class="btn-group">
@@ -127,13 +143,13 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="chat-section">
-            <label for="user-prompt"><b>💬 สนทนากับน้องพัฒนาสาระคาม (LLM):</b></label><br><br>
+            <label for="user-prompt"><b>💬 สนทนากับน้องพัฒนา (LLM):</b></label><br><br>
             <input type="text" id="user-prompt" placeholder="สอบถามหลักสูตร / ข้อมูลฝึกอบรม...">
             <button class="btn-ai" onclick="askAI()">สอบถาม</button>
         </div>
 
         <div class="response-box" id="ai-response">
-            <b>คำตอบจากน้องพัฒนาสาระคาม:</b><br>
+            <b>คำตอบจากน้องพัฒนา:</b><br>
             <span>รอรับคำสั่งหรือคำถาม...</span>
         </div>
 
@@ -182,7 +198,7 @@ HTML_TEMPLATE = """
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนาสาระคาม:</b><br>✨ " + data.reply;
+                document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนา:</b><br>✨ " + data.reply;
                 document.getElementById('status-box').innerText = "สถานะ: AI ตอบกลับแล้ว (SPEAKING)";
                 speakThai(data.reply);
             });
