@@ -68,7 +68,7 @@ def ask_ai():
         "messages": [
             {
                 "role": "system",
-                "content": f"คุณคือ 'น้องพัฒนา' ผู้ช่วยอัจฉริยะหญิงประจำ 'สำนักงานพัฒนาฝีมือแรงงานมหาสารคาม' (สนพ.มค.) ปีปัจจุบันคือ พ.ศ. 2569 ข้อมูลข่าวสารล่าสุด: [{NEWS_CACHE}] จงตอบคำถามด้วยน้ำเสียงสุภาพ เป็นกันเอง"
+                "content": f"คุณคือ 'น้องพัฒนาสาระคาม' ผู้ช่วยอัจฉริยะหญิงประจำ 'สำนักงานพัฒนาฝีมือแรงงานมหาสารคาม' (สนพ.มค.) ปีปัจจุบันคือ พ.ศ. 2569 ข้อมูลข่าวสารล่าสุด: [{NEWS_CACHE}] จงตอบคำถามด้วยน้ำเสียงสุภาพ เป็นกันเอง"
             },
             {
                 "role": "user",
@@ -117,7 +117,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>🤖 น้องพัฒนาสารคาม AI</h1>
+        <h1>🤖 น้องพัฒนาสาระคาม AI</h1>
         <p>ระบบควบคุมอัจฉริยะและ AI Assistant ประจำสำนักงาน</p>
         
         <div class="btn-group">
@@ -127,13 +127,13 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="chat-section">
-            <label for="user-prompt"><b>💬 สนทนากับน้องพัฒนา (LLM):</b></label><br><br>
+            <label for="user-prompt"><b>💬 สนทนากับน้องพัฒนาสาระคาม (LLM):</b></label><br><br>
             <input type="text" id="user-prompt" placeholder="สอบถามหลักสูตร / ข้อมูลฝึกอบรม...">
             <button class="btn-ai" onclick="askAI()">สอบถาม</button>
         </div>
 
         <div class="response-box" id="ai-response">
-            <b>คำตอบจากน้องพัฒนา:</b><br>
+            <b>คำตอบจากน้องพัฒนาสาระคาม:</b><br>
             <span>รอรับคำสั่งหรือคำถาม...</span>
         </div>
 
@@ -182,7 +182,7 @@ HTML_TEMPLATE = """
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนา:</b><br>✨ " + data.reply;
+                document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนาสาระคาม:</b><br>✨ " + data.reply;
                 document.getElementById('status-box').innerText = "สถานะ: AI ตอบกลับแล้ว (SPEAKING)";
                 speakThai(data.reply);
             });
