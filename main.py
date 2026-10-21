@@ -5,6 +5,8 @@ import paho.mqtt.client as mqtt
 
 app = Flask(__name__)
 
+# ตั้งค่า API Key ของ OpenRouter 
+OPENROUTER_API_KEY = "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"
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_TOPIC = "sarakham/kiosk/status"
 
@@ -25,7 +27,6 @@ NEWS_CACHE = "หลักสูตรฝึกอบรมล่าสุด �
 def scrape_dsd():
     global NEWS_CACHE
     headlines = []
-    
     try:
         url = "https://www.dsd.go.th/mahasarakham"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -48,6 +49,46 @@ def scrape_dsd():
 
     return jsonify({"status": "ok", "news_context": NEWS_CACHE})
 
+# ฟังก์ชันประมวลผลคำถามผ่าน OpenRouter AI (Gemini 2.5 Flash)
+@app.route('/api/ask-ai', methods=['POST'])
+def ask_ai():
+    data = request.json
+    user_prompt = data.get("prompt", "")
+    
+    # ส่งสถานะ THINKING ไปยังบอร์ด ESP32-S3
+    send_mqtt_command("THINKING")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}"
+    }
+    payload = {
+        "model": "google/gemini-2.5-flash",
+        "max_tokens": 250,
+        "messages": [
+            {
+                "role": "system",
+                "content": f"คุณคือ 'น้องพัฒนา' ผู้ช่วยอัจฉริยะหญิงประจำ 'สำนักงานพัฒนาฝีมือแรงงานมหาสารคาม' (สนพ.มค.) ปีปัจจุบันคือ พ.ศ. 2569 ข้อมูลข่าวสารล่าสุด: [{NEWS_CACHE}] จงตอบคำถามด้วยน้ำเสียงสุภาพ เป็นกันเอง"
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ]
+    }
+
+    try:
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
+        res_data = response.json()
+        ai_reply = res_data["choices"][0]["message"]["content"]
+        
+        # ส่งสถานะ SPEAKING ไปยังบอร์ด ESP32-S3 เมื่อได้คำตอบ
+        send_mqtt_command("SPEAKING")
+        return jsonify({"status": "success", "reply": ai_reply})
+    except Exception as e:
+        send_mqtt_command("HAPPY")
+        return jsonify({"status": "error", "reply": "ระบบ AI ขัดข้องชั่วคราวค่ะ"}), 500
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="th">
@@ -56,29 +97,44 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nong Pattana AI - Global Control Panel</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 40px; }
-        .container { max-width: 600px; margin: 0 auto; background: #1e293b; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 30px; }
+        .container { max-width: 650px; margin: 0 auto; background: #1e293b; padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { color: #38bdf8; margin-bottom: 5px; }
-        p { color: #94a3b8; margin-bottom: 25px; }
-        .btn-group { display: flex; justify-content: center; gap: 12px; margin-bottom: 25px; flex-wrap: wrap; }
-        button { padding: 12px 20px; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; color: white; transition: 0.2s; }
+        p { color: #94a3b8; margin-bottom: 20px; }
+        .btn-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        button { padding: 10px 18px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; color: white; transition: 0.2s; }
         button:hover { opacity: 0.9; transform: translateY(-2px); }
         .btn-happy { background: #22c55e; }
         .btn-thinking { background: #eab308; color: #000; }
         .btn-speaking { background: #ef4444; }
-        .news-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: left; margin-top: 20px; border-left: 4px solid #38bdf8; font-size: 14px; color: #cbd5e1; }
-        #status-box { margin-top: 15px; padding: 12px; background: #334155; border-radius: 8px; font-weight: bold; color: #38bdf8; }
+        .chat-section { margin-top: 20px; text-align: left; }
+        input[type="text"] { width: 72%; padding: 12px; font-size: 15px; background: #0f172a; color: #fff; border: 1px solid #334155; border-radius: 8px; }
+        .btn-ai { background: #38bdf8; color: #0f172a; padding: 12px 18px; }
+        .response-box { background: #0f172a; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #38bdf8; color: #cbd5e1; min-height: 50px; }
+        .news-box { background: #0f172a; padding: 12px; border-radius: 8px; text-align: left; margin-top: 20px; border-left: 4px solid #22c55e; font-size: 13px; color: #cbd5e1; }
+        #status-box { margin-top: 15px; padding: 10px; background: #334155; border-radius: 8px; font-weight: bold; color: #38bdf8; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🤖 น้องพัฒนาสารคาม AI</h1>
-        <p>ระบบควบคุมอัจฉริยะ (Global Cloud & MQTT)</p>
+        <p>ระบบควบคุมอัจฉริยะและ AI Assistant ประจำสำนักงาน</p>
         
         <div class="btn-group">
             <button class="btn-happy" onclick="setEmotionAndSpeak('HAPPY', 'สวัสดีค่ะ น้องพัฒนายินดีต้อนรับค่ะ')">😊 ยิ้มแย้ม</button>
             <button class="btn-thinking" onclick="setEmotionAndSpeak('THINKING', 'กำลังตรวจสอบข้อมูลข่าวสารให้ค่ะ')">🤔 กำลังคิด</button>
             <button class="btn-speaking" onclick="setEmotionAndSpeak('SPEAKING', 'สนใจหลักสูตรฝึกอบรม สอบถามได้นะคะ')">🗣️ กำลังพูด</button>
+        </div>
+
+        <div class="chat-section">
+            <label for="user-prompt"><b>💬 สนทนากับน้องพัฒนา (LLM):</b></label><br><br>
+            <input type="text" id="user-prompt" placeholder="สอบถามหลักสูตร / ข้อมูลฝึกอบรม...">
+            <button class="btn-ai" onclick="askAI()">สอบถาม</button>
+        </div>
+
+        <div class="response-box" id="ai-response">
+            <b>คำตอบจากน้องพัฒนา:</b><br>
+            <span>รอรับคำสั่งหรือคำถาม...</span>
         </div>
 
         <div id="status-box">สถานะระบบ: พร้อมใช้งานทั่วโลก</div>
@@ -110,6 +166,25 @@ HTML_TEMPLATE = """
             .then(res => res.json())
             .then(data => {
                 document.getElementById('status-box').innerText = "ส่งคำสั่งสำเร็จ: " + data.state;
+            });
+        }
+
+        function askAI() {
+            let promptText = document.getElementById("user-prompt").value;
+            if(!promptText) return;
+            document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนา:</b><br>⏳ กำลังประมวลผลข้อมูลและติดต่อ AI...";
+            document.getElementById('status-box').innerText = "สถานะ: AI กำลังคิด (THINKING)";
+
+            fetch('/api/ask-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: promptText })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("ai-response").innerHTML = "<b>คำตอบจากน้องพัฒนา:</b><br>✨ " + data.reply;
+                document.getElementById('status-box').innerText = "สถานะ: AI ตอบกลับแล้ว (SPEAKING)";
+                speakThai(data.reply);
             });
         }
 
